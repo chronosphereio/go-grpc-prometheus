@@ -16,12 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/m3db/prometheus_client_golang/prometheus/promhttp"
 
 	pb_testproto "github.com/grpc-ecosystem/go-grpc-prometheus/examples/testproto"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
+	"github.com/m3db/prometheus_client_golang/prometheus"
+	dto "github.com/m3db/prometheus_client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -257,9 +256,15 @@ func (s *testService) PingList(ping *pb_testproto.PingRequest, stream pb_testpro
 	return nil
 }
 
-// toFloat64HistCount does the same thing as prometheus go client testutil.ToFloat64, but for histograms.
+// Observer is the interface that wraps the Observe method, which is used by
+// Histogram and Summary to add observations.
+type Observer interface {
+	Observe(float64)
+}
+
+// toFloat64HistCount does the same thing as prometheus go client ToFloat64, but for histograms.
 // TODO(bwplotka): Upstream this function to prometheus client.
-func toFloat64HistCount(h prometheus.Observer) uint64 {
+func toFloat64HistCount(h Observer) uint64 {
 	var (
 		m      prometheus.Metric
 		mCount int
@@ -296,7 +301,7 @@ func toFloat64HistCount(h prometheus.Observer) uint64 {
 }
 
 func requireValue(t *testing.T, expect int, c prometheus.Collector) {
-	v := int(testutil.ToFloat64(c))
+	v := int(ToFloat64(c))
 	if v == expect {
 		return
 	}
@@ -306,7 +311,7 @@ func requireValue(t *testing.T, expect int, c prometheus.Collector) {
 	t.Fail()
 }
 
-func requireValueHistCount(t *testing.T, expect int, o prometheus.Observer) {
+func requireValueHistCount(t *testing.T, expect int, o Observer) {
 	v := int(toFloat64HistCount(o))
 	if v == expect {
 		return
@@ -319,7 +324,7 @@ func requireValueHistCount(t *testing.T, expect int, o prometheus.Observer) {
 
 func requireValueWithRetry(ctx context.Context, t *testing.T, expect int, c prometheus.Collector) {
 	for {
-		v := int(testutil.ToFloat64(c))
+		v := int(ToFloat64(c))
 		if v == expect {
 			return
 		}
@@ -335,7 +340,7 @@ func requireValueWithRetry(ctx context.Context, t *testing.T, expect int, c prom
 	}
 }
 
-func requireValueWithRetryHistCount(ctx context.Context, t *testing.T, expect int, o prometheus.Observer) {
+func requireValueWithRetryHistCount(ctx context.Context, t *testing.T, expect int, o Observer) {
 	for {
 		v := int(toFloat64HistCount(o))
 		if v == expect {
@@ -351,4 +356,66 @@ func requireValueWithRetryHistCount(ctx context.Context, t *testing.T, expect in
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+// ToFloat64 collects all Metrics from the provided Collector. It expects that
+// this results in exactly one Metric being collected, which must be a Gauge,
+// Counter, or Untyped. In all other cases, ToFloat64 panics. ToFloat64 returns
+// the value of the collected Metric.
+//
+// The Collector provided is typically a simple instance of Gauge or Counter, or
+// – less commonly – a GaugeVec or CounterVec with exactly one element. But any
+// Collector fulfilling the prerequisites described above will do.
+//
+// Use this function with caution. It is computationally very expensive and thus
+// not suited at all to read values from Metrics in regular code. This is really
+// only for testing purposes, and even for testing, other approaches are often
+// more appropriate (see this package's documentation).
+//
+// A clear anti-pattern would be to use a metric type from the prometheus
+// package to track values that are also needed for something else than the
+// exposition of Prometheus metrics. For example, you would like to track the
+// number of items in a queue because your code should reject queuing further
+// items if a certain limit is reached. It is tempting to track the number of
+// items in a prometheus.Gauge, as it is then easily available as a metric for
+// exposition, too. However, then you would need to call ToFloat64 in your
+// regular code, potentially quite often. The recommended way is to track the
+// number of items conventionally (in the way you would have done it without
+// considering Prometheus metrics) and then expose the number with a
+// prometheus.GaugeFunc.
+func ToFloat64(c prometheus.Collector) float64 {
+	var (
+		m      prometheus.Metric
+		mCount int
+		mChan  = make(chan prometheus.Metric)
+		done   = make(chan struct{})
+	)
+
+	go func() {
+		for m = range mChan {
+			mCount++
+		}
+		close(done)
+	}()
+
+	c.Collect(mChan)
+	close(mChan)
+	<-done
+
+	if mCount != 1 {
+		panic(fmt.Errorf("collected %d metrics instead of exactly 1", mCount))
+	}
+
+	pb := &dto.Metric{}
+	m.Write(pb)
+	if pb.Gauge != nil {
+		return pb.Gauge.GetValue()
+	}
+	if pb.Counter != nil {
+		return pb.Counter.GetValue()
+	}
+	if pb.Untyped != nil {
+		return pb.Untyped.GetValue()
+	}
+	panic(fmt.Errorf("collected a non-gauge/counter/untyped metric: %s", pb))
 }

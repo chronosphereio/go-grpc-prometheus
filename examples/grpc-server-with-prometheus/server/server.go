@@ -11,8 +11,8 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
 	pb "github.com/grpc-ecosystem/go-grpc-prometheus/examples/grpc-server-with-prometheus/protobuf"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/m3db/prometheus_client_golang/prometheus"
+	"github.com/m3db/prometheus_client_golang/prometheus/promhttp"
 )
 
 // DemoServiceServer defines a Server.

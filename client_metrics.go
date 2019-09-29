@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	prom "github.com/prometheus/client_golang/prometheus"
+	prom "github.com/m3db/prometheus_client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

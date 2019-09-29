@@ -6,7 +6,7 @@ package grpc_prometheus
 import (
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/m3db/prometheus_client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 )
 
@@ -36,6 +36,26 @@ type timer interface {
 	ObserveDuration() time.Duration
 }
 
+type histogramTimer struct {
+	begin     time.Time
+	histogram prometheus.Histogram
+}
+
+func newHistogramTimer(histogram prometheus.Histogram) histogramTimer {
+	return histogramTimer{
+		begin:     time.Now(),
+		histogram: histogram,
+	}
+}
+
+func (t histogramTimer) ObserveDuration() time.Duration {
+	d := time.Since(t.begin)
+	if t.histogram != nil {
+		t.histogram.Observe(d.Seconds())
+	}
+	return d
+}
+
 type noOpTimer struct {
 }
 
@@ -48,7 +68,7 @@ var emptyTimer = noOpTimer{}
 func (r *clientReporter) ReceiveMessageTimer() timer {
 	if r.metrics.clientStreamRecvHistogramEnabled {
 		hist := r.metrics.clientStreamRecvHistogram.WithLabelValues(string(r.rpcType), r.serviceName, r.methodName)
-		return prometheus.NewTimer(hist)
+		return newHistogramTimer(hist)
 	}
 
 	return emptyTimer
@@ -61,7 +81,7 @@ func (r *clientReporter) ReceivedMessage() {
 func (r *clientReporter) SendMessageTimer() timer {
 	if r.metrics.clientStreamSendHistogramEnabled {
 		hist := r.metrics.clientStreamSendHistogram.WithLabelValues(string(r.rpcType), r.serviceName, r.methodName)
-		return prometheus.NewTimer(hist)
+		return newHistogramTimer(hist)
 	}
 
 	return emptyTimer
