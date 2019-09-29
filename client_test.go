@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	pb_testproto "github.com/grpc-ecosystem/go-grpc-prometheus/examples/testproto"
+	pb_testproto "github.com/chronosphereio/go-grpc-prometheus/examples/testproto"
 	"github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
