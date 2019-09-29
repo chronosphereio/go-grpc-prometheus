@@ -48,8 +48,12 @@ func newHistogramTimer(histogram prometheus.Histogram) histogramTimer {
 	}
 }
 
-func (histogramTimer) ObserveDuration() time.Duration {
-	return 0
+func (t histogramTimer) ObserveDuration() time.Duration {
+	d := time.Since(t.begin)
+	if t.histogram != nil {
+		t.histogram.Observe(d.Seconds())
+	}
+	return d
 }
 
 type noOpTimer struct {
