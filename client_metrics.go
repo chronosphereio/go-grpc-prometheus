@@ -29,6 +29,12 @@ type ClientMetrics struct {
 	clientStreamSendHistogramEnabled bool
 	clientStreamSendHistogramOpts    prom.HistogramOpts
 	clientStreamSendHistogram        *prom.HistogramVec
+
+	clientMeasureBandwidthEnabled   bool
+	clientInPayloadByteCounter      *prom.CounterVec
+	clientWireInPayloadByteCounter  *prom.CounterVec
+	clientOutPayloadByteCounter     *prom.CounterVec
+	clientWireOutPayloadByteCounter *prom.CounterVec
 }
 
 // NewClientMetrics returns a ClientMetrics object. Use a new instance of
@@ -103,6 +109,12 @@ func (m *ClientMetrics) Describe(ch chan<- *prom.Desc) {
 	if m.clientStreamSendHistogramEnabled {
 		m.clientStreamSendHistogram.Describe(ch)
 	}
+	if m.clientMeasureBandwidthEnabled {
+		m.clientInPayloadByteCounter.Describe(ch)
+		m.clientWireInPayloadByteCounter.Describe(ch)
+		m.clientOutPayloadByteCounter.Describe(ch)
+		m.clientWireOutPayloadByteCounter.Describe(ch)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting
@@ -122,6 +134,40 @@ func (m *ClientMetrics) Collect(ch chan<- prom.Metric) {
 	if m.clientStreamSendHistogramEnabled {
 		m.clientStreamSendHistogram.Collect(ch)
 	}
+	if m.clientMeasureBandwidthEnabled {
+		m.clientInPayloadByteCounter.Collect(ch)
+		m.clientWireInPayloadByteCounter.Collect(ch)
+		m.clientOutPayloadByteCounter.Collect(ch)
+		m.clientWireOutPayloadByteCounter.Collect(ch)
+	}
+}
+
+// EnableClientMeasureBandwidth enables counters to measure in and out payload sizes
+func (m *ClientMetrics) EnableClientMeasureBandwidth() {
+	if !m.clientMeasureBandwidthEnabled {
+		m.clientInPayloadByteCounter = prom.NewCounterVec(
+			prom.CounterOpts{
+				Name: "grpc_client_in_payload_bytes",
+				Help: "Size of inbound payloads (e.g. uncompressed), in bytes.",
+			}, []string{"grpc_service", "grpc_method"})
+		m.clientWireInPayloadByteCounter = prom.NewCounterVec(
+			prom.CounterOpts{
+				Name: "grpc_client_wire_in_payload_bytes",
+				Help: "Size 'on the wire' (e.g. compressed) of inbound payloads, in bytes.",
+			}, []string{"grpc_service", "grpc_method"})
+
+		m.clientOutPayloadByteCounter = prom.NewCounterVec(
+			prom.CounterOpts{
+				Name: "grpc_client_out_payload_bytes",
+				Help: "Size of outbound payloads (e.g. uncompressed), in bytes.",
+			}, []string{"grpc_service", "grpc_method"})
+		m.clientWireOutPayloadByteCounter = prom.NewCounterVec(
+			prom.CounterOpts{
+				Name: "grpc_client_wire_out_payload_bytes",
+				Help: "Size 'on the wire' (e.g. compressed) of outbound payloads, in bytes.",
+			}, []string{"grpc_service", "grpc_method"})
+	}
+	m.clientMeasureBandwidthEnabled = true
 }
 
 // EnableClientHandlingTimeHistogram turns on recording of handling time of RPCs.
@@ -200,6 +246,11 @@ func (m *ClientMetrics) StreamClientInterceptor() func(ctx context.Context, desc
 		}
 		return &monitoredClientStream{clientStream, monitor}, nil
 	}
+}
+
+// StatsHandler is a gRPC stats handler that provides Prometheus monitoring for various grpc request flow events.
+func (m *ClientMetrics) StatsHandler() *StatsHandler {
+	return NewStatsHandler(StatsHandlerOptions{clientMetrics: m})
 }
 
 func clientStreamType(desc *grpc.StreamDesc) grpcType {

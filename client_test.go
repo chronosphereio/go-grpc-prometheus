@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
-	pb_testproto "github.com/chronosphereio/go-grpc-prometheus/examples/testproto"
 	"github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	pb_testproto "github.com/chronosphereio/go-grpc-prometheus/examples/testproto"
 )
 
 var (
@@ -43,6 +44,7 @@ func (s *ClientInterceptorTestSuite) SetupSuite() {
 	var err error
 
 	EnableClientHandlingTimeHistogram()
+	EnableClientMeasureBandwidth()
 
 	s.serverListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(s.T(), err, "must be able to allocate a port for serverListener")
@@ -61,7 +63,9 @@ func (s *ClientInterceptorTestSuite) SetupSuite() {
 		grpc.WithBlock(),
 		grpc.WithUnaryInterceptor(UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(StreamClientInterceptor),
-		grpc.WithTimeout(2*time.Second))
+		grpc.WithTimeout(2*time.Second),
+		grpc.WithStatsHandler(ClientStatsHandler),
+	)
 	require.NoError(s.T(), err, "must not error on client Dial")
 	s.testClient = pb_testproto.NewTestServiceClient(s.clientConn)
 }
@@ -76,6 +80,10 @@ func (s *ClientInterceptorTestSuite) SetupTest() {
 	DefaultClientMetrics.clientHandledHistogram.Reset()
 	DefaultClientMetrics.clientStreamMsgReceived.Reset()
 	DefaultClientMetrics.clientStreamMsgSent.Reset()
+	DefaultClientMetrics.clientInPayloadByteCounter.Reset()
+	DefaultClientMetrics.clientWireInPayloadByteCounter.Reset()
+	DefaultClientMetrics.clientOutPayloadByteCounter.Reset()
+	DefaultClientMetrics.clientWireOutPayloadByteCounter.Reset()
 }
 
 func (s *ClientInterceptorTestSuite) TearDownSuite() {
@@ -106,6 +114,18 @@ func (s *ClientInterceptorTestSuite) TestUnaryIncrementsMetrics() {
 	requireValue(s.T(), 1, DefaultClientMetrics.clientStartedCounter.WithLabelValues("unary", "mwitkow.testproto.TestService", "PingError"))
 	requireValue(s.T(), 1, DefaultClientMetrics.clientHandledCounter.WithLabelValues("unary", "mwitkow.testproto.TestService", "PingError", "FailedPrecondition"))
 	requireValueHistCount(s.T(), 1, DefaultClientMetrics.clientHandledHistogram.WithLabelValues("unary", "mwitkow.testproto.TestService", "PingError"))
+
+	// test server byte counters
+	_, err = s.testClient.Ping(s.ctx, &pb_testproto.PingRequest{Value: "hello"})
+	requireValue(s.T(), 9, DefaultClientMetrics.clientInPayloadByteCounter.WithLabelValues("mwitkow.testproto.TestService", "Ping"))
+
+	// TODO(steve) inpayload wirelength is unfortunately not set in the version of grpc that this project depends on
+	// I don't think it's a good idea to go around messing w/ dependencies just because of this.
+	// Here's what it looks like now: https://github.com/grpc/grpc-go/blob/master/server.go#L1201
+	requireValue(s.T(), 0, DefaultClientMetrics.clientWireInPayloadByteCounter.WithLabelValues("mwitkow.testproto.TestService", "Ping"))
+
+	requireValue(s.T(), 7, DefaultClientMetrics.clientOutPayloadByteCounter.WithLabelValues("mwitkow.testproto.TestService", "Ping"))
+	requireValue(s.T(), 12, DefaultClientMetrics.clientWireOutPayloadByteCounter.WithLabelValues("mwitkow.testproto.TestService", "Ping"))
 }
 
 func (s *ClientInterceptorTestSuite) TestStartedStreamingIncrementsStarted() {

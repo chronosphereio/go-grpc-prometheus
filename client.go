@@ -20,6 +20,9 @@ var (
 
 	// StreamClientInterceptor is a gRPC client-side interceptor that provides Prometheus monitoring for Streaming RPCs.
 	StreamClientInterceptor = DefaultClientMetrics.StreamClientInterceptor()
+
+	// ClientStatsHandler is a gRPC stats handler that provides Prometheus monitoring for various grpc request flow events.
+	ClientStatsHandler = DefaultClientMetrics.StatsHandler()
 )
 
 func init() {
@@ -54,4 +57,13 @@ func EnableClientStreamReceiveTimeHistogram(opts ...HistogramOption) {
 func EnableClientStreamSendTimeHistogram(opts ...HistogramOption) {
 	DefaultClientMetrics.EnableClientStreamSendTimeHistogram(opts...)
 	prom.Register(DefaultClientMetrics.clientStreamSendHistogram)
+}
+
+// EnableMeasureBandwidth turns on recording of in and out payload sizes
+func EnableClientMeasureBandwidth() {
+	DefaultClientMetrics.EnableClientMeasureBandwidth()
+	prom.Register(DefaultClientMetrics.clientInPayloadByteCounter)
+	prom.Register(DefaultClientMetrics.clientWireInPayloadByteCounter)
+	prom.Register(DefaultClientMetrics.clientOutPayloadByteCounter)
+	prom.Register(DefaultClientMetrics.clientWireOutPayloadByteCounter)
 }
