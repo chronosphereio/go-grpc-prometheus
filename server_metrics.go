@@ -18,6 +18,12 @@ type ServerMetrics struct {
 	serverHandledHistogramEnabled bool
 	serverHandledHistogramOpts    prom.HistogramOpts
 	serverHandledHistogram        *prom.HistogramVec
+
+	serverMeasureBandwidthEnabled   bool
+	serverInPayloadByteCounter      *prom.CounterVec
+	serverWireInPayloadByteCounter  *prom.CounterVec
+	serverOutPayloadByteCounter     *prom.CounterVec
+	serverWireOutPayloadByteCounter *prom.CounterVec
 }
 
 // NewServerMetrics returns a ServerMetrics object. Use a new instance of
@@ -54,7 +60,41 @@ func NewServerMetrics(counterOpts ...CounterOption) *ServerMetrics {
 			Buckets: prom.DefBuckets,
 		},
 		serverHandledHistogram: nil,
+
+		serverMeasureBandwidthEnabled:   false,
+		serverInPayloadByteCounter:      nil,
+		serverWireInPayloadByteCounter:  nil,
+		serverOutPayloadByteCounter:     nil,
+		serverWireOutPayloadByteCounter: nil,
 	}
+}
+
+// EnableMeasureBandwidth enables counters to measure in and out payload sizes
+func (m *ServerMetrics) EnableMeasureBandwidth() {
+	if !m.serverMeasureBandwidthEnabled {
+		m.serverInPayloadByteCounter = prom.NewCounterVec(
+			prom.CounterOpts{
+				Name: "grpc_server_in_payload_bytes",
+				Help: "Size of inbound payloads (e.g. uncompressed), in bytes.",
+			}, []string{"grpc_service", "grpc_method"})
+		m.serverWireInPayloadByteCounter = prom.NewCounterVec(
+			prom.CounterOpts{
+				Name: "grpc_server_wire_in_payload_bytes",
+				Help: "Size 'on the wire' (e.g. compressed) of inbound payloads, in bytes.",
+			}, []string{"grpc_service", "grpc_method"})
+
+		m.serverOutPayloadByteCounter = prom.NewCounterVec(
+			prom.CounterOpts{
+				Name: "grpc_server_out_payload_bytes",
+				Help: "Size of outbound payloads (e.g. uncompressed), in bytes.",
+			}, []string{"grpc_service", "grpc_method"})
+		m.serverWireOutPayloadByteCounter = prom.NewCounterVec(
+			prom.CounterOpts{
+				Name: "grpc_server_wire_out_payload_bytes",
+				Help: "Size 'on the wire' (e.g. compressed) of outbound payloads, in bytes.",
+			}, []string{"grpc_service", "grpc_method"})
+	}
+	m.serverMeasureBandwidthEnabled = true
 }
 
 // EnableHandlingTimeHistogram enables histograms being registered when
@@ -85,6 +125,12 @@ func (m *ServerMetrics) Describe(ch chan<- *prom.Desc) {
 	if m.serverHandledHistogramEnabled {
 		m.serverHandledHistogram.Describe(ch)
 	}
+	if m.serverMeasureBandwidthEnabled {
+		m.serverInPayloadByteCounter.Describe(ch)
+		m.serverWireInPayloadByteCounter.Describe(ch)
+		m.serverOutPayloadByteCounter.Describe(ch)
+		m.serverWireOutPayloadByteCounter.Describe(ch)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting
@@ -97,6 +143,12 @@ func (m *ServerMetrics) Collect(ch chan<- prom.Metric) {
 	m.serverStreamMsgSent.Collect(ch)
 	if m.serverHandledHistogramEnabled {
 		m.serverHandledHistogram.Collect(ch)
+	}
+	if m.serverMeasureBandwidthEnabled {
+		m.serverInPayloadByteCounter.Collect(ch)
+		m.serverWireInPayloadByteCounter.Collect(ch)
+		m.serverOutPayloadByteCounter.Collect(ch)
+		m.serverWireOutPayloadByteCounter.Collect(ch)
 	}
 }
 
@@ -124,6 +176,11 @@ func (m *ServerMetrics) StreamServerInterceptor() func(srv interface{}, ss grpc.
 		monitor.Handled(st.Code())
 		return err
 	}
+}
+
+// StatsHandler is a gRPC stats handler that provides Prometheus monitoring for various grpc request flow events.
+func (m *ServerMetrics) StatsHandler() *StatsHandler {
+	return NewStatsHandler(StatsHandlerOptions{serverMetrics: m})
 }
 
 // InitializeMetrics initializes all metrics, with their appropriate null
@@ -179,6 +236,12 @@ func preRegisterMethod(metrics *ServerMetrics, serviceName string, mInfo *grpc.M
 	metrics.serverStreamMsgSent.GetMetricWithLabelValues(methodType, serviceName, methodName)
 	if metrics.serverHandledHistogramEnabled {
 		metrics.serverHandledHistogram.GetMetricWithLabelValues(methodType, serviceName, methodName)
+	}
+	if metrics.serverMeasureBandwidthEnabled {
+		metrics.serverInPayloadByteCounter.GetMetricWithLabelValues(serviceName, methodName)
+		metrics.serverWireInPayloadByteCounter.GetMetricWithLabelValues(serviceName, methodName)
+		metrics.serverOutPayloadByteCounter.GetMetricWithLabelValues(serviceName, methodName)
+		metrics.serverWireOutPayloadByteCounter.GetMetricWithLabelValues(serviceName, methodName)
 	}
 	for _, code := range allCodes {
 		metrics.serverHandledCounter.GetMetricWithLabelValues(methodType, serviceName, methodName, code.String())

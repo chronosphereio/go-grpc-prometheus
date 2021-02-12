@@ -18,7 +18,6 @@ import (
 
 	"github.com/m3db/prometheus_client_golang/prometheus/promhttp"
 
-	pb_testproto "github.com/chronosphereio/go-grpc-prometheus/examples/testproto"
 	"github.com/m3db/prometheus_client_golang/prometheus"
 	dto "github.com/m3db/prometheus_client_model/go"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +26,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	pb_testproto "github.com/chronosphereio/go-grpc-prometheus/examples/testproto"
 )
 
 var (
@@ -58,14 +59,16 @@ func (s *ServerInterceptorTestSuite) SetupSuite() {
 	var err error
 
 	EnableHandlingTimeHistogram()
+	EnableMeasureBandwidth()
 
 	s.serverListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(s.T(), err, "must be able to allocate a port for serverListener")
 
-	// This is the point where we hook up the interceptor
+	// This is the point where we hook up the interceptor and stats handler
 	s.server = grpc.NewServer(
 		grpc.StreamInterceptor(StreamServerInterceptor),
 		grpc.UnaryInterceptor(UnaryServerInterceptor),
+		grpc.StatsHandler(ServerStatsHandler),
 	)
 	pb_testproto.RegisterTestServiceServer(s.server, &testService{t: s.T()})
 
@@ -88,6 +91,10 @@ func (s *ServerInterceptorTestSuite) SetupTest() {
 	DefaultServerMetrics.serverHandledHistogram.Reset()
 	DefaultServerMetrics.serverStreamMsgReceived.Reset()
 	DefaultServerMetrics.serverStreamMsgSent.Reset()
+	DefaultServerMetrics.serverInPayloadByteCounter.Reset()
+	DefaultServerMetrics.serverWireInPayloadByteCounter.Reset()
+	DefaultServerMetrics.serverOutPayloadByteCounter.Reset()
+	DefaultServerMetrics.serverWireOutPayloadByteCounter.Reset()
 	Register(s.server)
 }
 
@@ -123,6 +130,10 @@ func (s *ServerInterceptorTestSuite) TestRegisterPresetsStuff() {
 		{"grpc_server_handled_total", []string{"mwitkow.testproto.TestService", "PingList", "server_stream", "Aborted"}},
 		{"grpc_server_handled_total", []string{"mwitkow.testproto.TestService", "PingEmpty", "unary", "FailedPrecondition"}},
 		{"grpc_server_handled_total", []string{"mwitkow.testproto.TestService", "PingEmpty", "unary", "ResourceExhausted"}},
+		{"grpc_server_in_payload_bytes", []string{"mwitkow.testproto.TestService", "Ping"}},
+		{"grpc_server_wire_in_payload_bytes", []string{"mwitkow.testproto.TestService", "Ping"}},
+		{"grpc_server_out_payload_bytes", []string{"mwitkow.testproto.TestService", "Ping"}},
+		{"grpc_server_wire_out_payload_bytes", []string{"mwitkow.testproto.TestService", "Ping"}},
 	} {
 		lineCount := len(fetchPrometheusLines(s.T(), testCase.metricName, testCase.existingLabels...))
 		assert.NotEqual(s.T(), 0, lineCount, "metrics must exist for test case %d", testID)
@@ -141,6 +152,18 @@ func (s *ServerInterceptorTestSuite) TestUnaryIncrementsMetrics() {
 	requireValue(s.T(), 1, DefaultServerMetrics.serverStartedCounter.WithLabelValues("unary", "mwitkow.testproto.TestService", "PingError"))
 	requireValue(s.T(), 1, DefaultServerMetrics.serverHandledCounter.WithLabelValues("unary", "mwitkow.testproto.TestService", "PingError", "FailedPrecondition"))
 	requireValueHistCount(s.T(), 1, DefaultServerMetrics.serverHandledHistogram.WithLabelValues("unary", "mwitkow.testproto.TestService", "PingError"))
+
+	// test server byte counters
+	_, err = s.testClient.Ping(s.ctx, &pb_testproto.PingRequest{Value: "hello"})
+	requireValue(s.T(), 7, DefaultServerMetrics.serverInPayloadByteCounter.WithLabelValues("mwitkow.testproto.TestService", "Ping"))
+
+	// TODO(steve) inpayload wirelength is unfortunately not set in the version of grpc that this project depends on
+	// I don't think it's a good idea to go around messing w/ dependencies just because of this.
+	// Here's what it looks like now: https://github.com/grpc/grpc-go/blob/master/server.go#L1201
+	requireValue(s.T(), 0, DefaultServerMetrics.serverWireInPayloadByteCounter.WithLabelValues("mwitkow.testproto.TestService", "Ping"))
+
+	requireValue(s.T(), 9, DefaultServerMetrics.serverOutPayloadByteCounter.WithLabelValues("mwitkow.testproto.TestService", "Ping"))
+	requireValue(s.T(), 14, DefaultServerMetrics.serverWireOutPayloadByteCounter.WithLabelValues("mwitkow.testproto.TestService", "Ping"))
 }
 
 func (s *ServerInterceptorTestSuite) TestStartedStreamingIncrementsStarted() {
