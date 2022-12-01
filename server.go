@@ -6,31 +6,31 @@
 package grpc_prometheus
 
 import (
-	prom "github.com/m3db/prometheus_client_golang/prometheus"
-	"google.golang.org/grpc"
+    prom "github.com/prometheus/client_golang/prometheus"
+    "google.golang.org/grpc"
 )
 
 var (
-	// DefaultServerMetrics is the default instance of ServerMetrics. It is
-	// intended to be used in conjunction the default Prometheus metrics
-	// registry.
-	DefaultServerMetrics = NewServerMetrics()
+    // DefaultServerMetrics is the default instance of ServerMetrics. It is
+    // intended to be used in conjunction the default Prometheus metrics
+    // registry.
+    DefaultServerMetrics = NewServerMetrics()
 
-	// UnaryServerInterceptor is a gRPC server-side interceptor that provides Prometheus monitoring for Unary RPCs.
-	UnaryServerInterceptor = DefaultServerMetrics.UnaryServerInterceptor()
+    // UnaryServerInterceptor is a gRPC server-side interceptor that provides Prometheus monitoring for Unary RPCs.
+    UnaryServerInterceptor = DefaultServerMetrics.UnaryServerInterceptor()
 
-	// StreamServerInterceptor is a gRPC server-side interceptor that provides Prometheus monitoring for Streaming RPCs.
-	StreamServerInterceptor = DefaultServerMetrics.StreamServerInterceptor()
+    // StreamServerInterceptor is a gRPC server-side interceptor that provides Prometheus monitoring for Streaming RPCs.
+    StreamServerInterceptor = DefaultServerMetrics.StreamServerInterceptor()
 
-	// ServerStatsHandler is a gRPC stats handler that provides Prometheus monitoring for various grpc request flow events.
-	ServerStatsHandler = DefaultServerMetrics.StatsHandler()
+    // ServerStatsHandler is a gRPC stats handler that provides Prometheus monitoring for various grpc request flow events.
+    ServerStatsHandler = DefaultServerMetrics.StatsHandler()
 )
 
 func init() {
-	prom.MustRegister(DefaultServerMetrics.serverStartedCounter)
-	prom.MustRegister(DefaultServerMetrics.serverHandledCounter)
-	prom.MustRegister(DefaultServerMetrics.serverStreamMsgReceived)
-	prom.MustRegister(DefaultServerMetrics.serverStreamMsgSent)
+    prom.MustRegister(DefaultServerMetrics.serverStartedCounter)
+    prom.MustRegister(DefaultServerMetrics.serverHandledCounter)
+    prom.MustRegister(DefaultServerMetrics.serverStreamMsgReceived)
+    prom.MustRegister(DefaultServerMetrics.serverStreamMsgSent)
 }
 
 // Register takes a gRPC server and pre-initializes all counters to 0. This
@@ -38,7 +38,7 @@ func init() {
 // be called *after* all services have been registered with the server. This
 // function acts on the DefaultServerMetrics variable.
 func Register(server *grpc.Server) {
-	DefaultServerMetrics.InitializeMetrics(server)
+    DefaultServerMetrics.InitializeMetrics(server)
 }
 
 // EnableHandlingTimeHistogram turns on recording of handling time
@@ -46,15 +46,15 @@ func Register(server *grpc.Server) {
 // to retain and query. This function acts on the DefaultServerMetrics
 // variable and the default Prometheus metrics registry.
 func EnableHandlingTimeHistogram(opts ...HistogramOption) {
-	DefaultServerMetrics.EnableHandlingTimeHistogram(opts...)
-	prom.Register(DefaultServerMetrics.serverHandledHistogram)
+    DefaultServerMetrics.EnableHandlingTimeHistogram(opts...)
+    prom.Register(DefaultServerMetrics.serverHandledHistogram)
 }
 
 // EnableMeasureBandwidth turns on recording of in and out payload sizes
 func EnableMeasureBandwidth() {
-	DefaultServerMetrics.EnableMeasureBandwidth()
-	prom.Register(DefaultServerMetrics.serverInPayloadByteCounter)
-	prom.Register(DefaultServerMetrics.serverWireInPayloadByteCounter)
-	prom.Register(DefaultServerMetrics.serverOutPayloadByteCounter)
-	prom.Register(DefaultServerMetrics.serverWireOutPayloadByteCounter)
+    DefaultServerMetrics.EnableMeasureBandwidth()
+    prom.Register(DefaultServerMetrics.serverInPayloadByteCounter)
+    prom.Register(DefaultServerMetrics.serverWireInPayloadByteCounter)
+    prom.Register(DefaultServerMetrics.serverOutPayloadByteCounter)
+    prom.Register(DefaultServerMetrics.serverWireOutPayloadByteCounter)
 }
