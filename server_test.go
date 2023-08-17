@@ -16,10 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/prometheus_client_golang/prometheus/promhttp"
-
-	"github.com/m3db/prometheus_client_golang/prometheus"
-	dto "github.com/m3db/prometheus_client_model/go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"

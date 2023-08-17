@@ -6,7 +6,7 @@ package grpc_prometheus
 import (
 	"time"
 
-	"github.com/m3db/prometheus_client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 )
 
@@ -37,21 +37,21 @@ type timer interface {
 }
 
 type histogramTimer struct {
-	begin     time.Time
-	histogram prometheus.Histogram
+	begin    time.Time
+	observer prometheus.Observer
 }
 
-func newHistogramTimer(histogram prometheus.Histogram) histogramTimer {
+func newHistogramTimer(observer prometheus.Observer) histogramTimer {
 	return histogramTimer{
-		begin:     time.Now(),
-		histogram: histogram,
+		begin:    time.Now(),
+		observer: observer,
 	}
 }
 
 func (t histogramTimer) ObserveDuration() time.Duration {
 	d := time.Since(t.begin)
-	if t.histogram != nil {
-		t.histogram.Observe(d.Seconds())
+	if t.observer != nil {
+		t.observer.Observe(d.Seconds())
 	}
 	return d
 }

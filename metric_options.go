@@ -1,7 +1,7 @@
 package grpc_prometheus
 
 import (
-	prom "github.com/m3db/prometheus_client_golang/prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
 )
 
 // A CounterOption lets you add options to Counter metrics using With* funcs.

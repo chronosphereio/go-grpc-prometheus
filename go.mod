@@ -3,15 +3,11 @@ module github.com/chronosphereio/go-grpc-prometheus
 go 1.15
 
 require (
-	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/golang/protobuf v1.3.2
-	github.com/m3db/prometheus_client_golang v0.8.1
-	github.com/m3db/prometheus_client_model v0.1.0
-	github.com/m3db/prometheus_common v0.1.0 // indirect
-	github.com/m3db/prometheus_procfs v0.8.1 // indirect
-	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
-	github.com/stretchr/testify v1.3.0
-	golang.org/x/net v0.7.0
-	google.golang.org/grpc v1.18.0
+	github.com/golang/protobuf v1.5.3
+	github.com/prometheus/client_golang v1.16.0
+	github.com/prometheus/client_model v0.4.0
+	github.com/prometheus/common v0.44.0 // indirect
+	github.com/stretchr/testify v1.8.2
+	golang.org/x/net v0.10.0
+	google.golang.org/grpc v1.31.0
 )
