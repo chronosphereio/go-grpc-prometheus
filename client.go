@@ -26,10 +26,10 @@ var (
 )
 
 func init() {
-	prom.MustRegister(DefaultClientMetrics.clientStartedCounter)
-	prom.MustRegister(DefaultClientMetrics.clientHandledCounter)
-	prom.MustRegister(DefaultClientMetrics.clientStreamMsgReceived)
-	prom.MustRegister(DefaultClientMetrics.clientStreamMsgSent)
+	//prom.MustRegister(DefaultClientMetrics.clientStartedCounter)
+	//prom.MustRegister(DefaultClientMetrics.clientHandledCounter)
+	//prom.MustRegister(DefaultClientMetrics.clientStreamMsgReceived)
+	//prom.MustRegister(DefaultClientMetrics.clientStreamMsgSent)
 }
 
 // EnableClientHandlingTimeHistogram turns on recording of handling time of
